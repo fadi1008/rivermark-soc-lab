@@ -1,1 +1,1 @@
-# rivermark-soc-lab
+Rivermark SOC Lab — building a security operations capability for a small investment research firm. Isolated lab, controlled attacks, detection, investigation, response, hardening.
