@@ -87,3 +87,15 @@
 ## 2026-09-25 — Portal RAM note
 
 Portal at 2 GB is fine for Mission 2 (addressing + ping). Once MySQL + nginx exist, 2560–3072 MB is still Core Lab. Do not steal RAM from the host reserve to do it.
+
+
+
+## 2026-09-25 — Ubuntu Server ISO verification
+
+**ISO filename:** ubuntu-24.04.5-live-server-amd64.iso
+**Source:** https://releases.ubuntu.com/24.04.5/
+**My SHA256 (computed on my disk):** 97f3d7ffb032c3eb3b23d2c8be9cc76e60c2c1f2c0146ba5ba9fe01cafae0fd8
+**Canonical SHA256 (published):** 97f3d7ffb032c3eb3b23d2c8be9cc76e60c2c1f2c0146ba5ba9fe01cafae0fd8
+**Match:** yes
+**Method:** Get-FileHash -Algorithm SHA256 (PowerShell)
+**Date verified:** 2026-09-25
