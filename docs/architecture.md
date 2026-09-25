@@ -6,7 +6,6 @@
 
 ---
 
-## 1. Network Diagram
 YOUR WINDOWS 11 HOST
 (not on rivermark-lan)
 |
@@ -16,7 +15,7 @@ VirtualBox
 | |
 [Internal Network] [Host-only adapter]
 rivermark-lan (temporary, for evidence)
-10.20.30.0/24 |
+10.20.30.0/24 (dashed — not always cabled)
 | |
 +---------+---------+ |
 | | |
@@ -28,7 +27,10 @@ rivermark-lan (temporary, for evidence)
 (SCP evidence out)
 
 
+The Host-only adapter is drawn dashed because it is temporary, not permanently cabled. It is added only for evidence transfer, then disconnected.
+
 **Extended Lab (later):**
+
 
 rivermark-lan — 10.20.30.0/24
 |
@@ -43,6 +45,7 @@ workstation)
 10.20.30.40
 (Wazuh — runs sequentially,
 never with rivermark-ws01)
+
 
 
 **Advanced Lab (much later):**
@@ -73,13 +76,13 @@ never with rivermark-ws01)
 
 Answers to the five required questions for each VirtualBox network mode.
 
-| Mode | Can VM reach internet? | Can VM reach other VMs? | Can VM reach host? | Can VM reach home Wi-Fi devices? | Could a password spray from Kali hit something that is not yours? |
+| Mode | Internet? | Other VMs? | Host? | Home Wi-Fi devices? | Password spray can hit what is not a lab VM? |
 |---|---|---|---|---|---|
-| **Bridged** | Yes | Yes (same L2) | Yes | **Yes** | **Yes — dangerous** |
-| **NAT** | Yes | No (unless port-forward) | No | No | No |
-| **NAT Network** | Yes | Yes (same NAT network) | Limited (port-forward) | No | No |
-| **Host-only** | No | Yes (same host-only network) | Yes (host has adapter) | No | No |
-| **Internal Network** | No | Yes (same internal network) | **No** | No | No |
+| **Bridged** | Yes | Yes (same L2) | Yes | **Yes** | **Yes — home LAN and the internet** |
+| **NAT** | Yes | No (unless port-forward) | Guest → host often works; host → guest does not without port-forward | No | **Yes — the internet (not the home LAN)** |
+| **NAT Network** | Yes | Yes (same NAT network) | Limited (port-forward) | No | **Yes — the internet (not the home LAN)** |
+| **Host-only** | No | Yes (same host-only network) | Yes (host has adapter) | No | **Yes — the host (your real Windows 11)** |
+| **Internal Network** | No | Yes (same internal network) | **No** | No | **No, if you target lab IPs; other destinations fail closed (no route)** |
 
 **Why Internal Network was chosen:**
 
@@ -92,6 +95,17 @@ Answers to the five required questions for each VirtualBox network mode.
 - Bridged places Kali on the same Layer 2 network as home devices (router, printer, phones, other PCs).
 - A password spray against `192.168.1.0/24` from Kali would target real devices.
 - This is unacceptable and potentially illegal.
+
+**Why NAT on Kali is dangerous:**
+
+- NAT hides you from the home LAN. It does not block outbound traffic.
+- `hydra` against `ssh.example.com` from a NAT-attached Kali leaves your house and becomes a real attack.
+- A mistyped target becomes a real attack because the default route points to the internet.
+
+**Why Host-only is not harmless:**
+
+- `192.168.56.1` is often the host. A spray there can lock your real account or hit real RDP/SSH on the host.
+- Keep Host-only off Kali.
 
 ---
 
@@ -116,27 +130,34 @@ Answers to the five required questions for each VirtualBox network mode.
 
 ## 5. Update Rule — NAT Procedure
 
-**Rule:** Only `rivermark-portal` ever gets a temporary NAT adapter. Kali never gets NAT.
+**Rule:** Only `rivermark-portal` ever gets a NAT adapter. Kali never gets NAT.
 
-**Why:** Kali is the attacker. If Kali has NAT, a mistyped scan could leave the lab via the default route. The portal only needs NAT to fetch updates. The portal is not running attack tools.
+### Adapter layout on rivermark-portal
 
-**Procedure:**
+| Adapter | Network | Config | Default state |
+|---|---|---|---|
+| Adapter 1 | Internal `rivermark-lan` | Static `10.20.30.20/24`, no gateway | Always attached, cable connected |
+| Adapter 2 | NAT | DHCP (used only during updates) | Present in VM config, cable disconnected by default |
 
-1. Snapshot the VM before adding NAT.
-2. Power off the VM.
-3. Add a second adapter: NAT.
-4. Boot. Confirm `ip route show default` shows NAT as the default route.
-5. Run updates: `sudo apt update && sudo apt upgrade -y`.
-6. Power off.
-7. **Remove the NAT adapter entirely** (do not just disconnect the cable — deleting is cleaner for netplan).
-8. Boot. Confirm `ip route show default` no longer shows a default route via NAT.
-9. Snapshot again: `post-update-clean`.
+### Update window procedure
 
-**What to watch for:**
+1. Snapshot before.
+2. In VirtualBox, tick **Cable Connected** on Adapter 2.
+3. Boot. Confirm `ip route show default` shows NAT as default.
+4. `sudo apt update && sudo apt upgrade -y`
+5. Untick **Cable Connected** on Adapter 2.
+6. Confirm `ip route show default` no longer shows a default route.
+7. Snapshot after: `post-update-clean`.
 
-- Hot-adding or removing NICs changes interface names (`ens3` → `ens7`). This breaks static netplan config.
-- Having a NIC and disconnecting the virtual cable is not the same as deleting the NIC. One wrecks your addressing; one is a control.
-- Always power off before adding or removing adapters.
+**Why cable disconnect, not adapter delete:**
+
+- VirtualBox keeps the NIC in the VM config when you disconnect the cable. Netplan still matches the same interface name (`ens3` stays `ens3`).
+- No cable = interface down = no default route.
+- Deleting or hot-adding the NIC renames the interface (`ens3` → `ens18`) and leaves the portal without `10.20.30.20` on next boot.
+
+**Kali:** Adapter 1 Internal only. No Adapter 2. Ever.
+
+**A missing default route is a security control.** After every change, `ip route show default` on the portal should show nothing — except during a documented update window. A surprise default route is an incident.
 
 ---
 
@@ -146,15 +167,17 @@ Answers to the five required questions for each VirtualBox network mode.
 
 **Why:** Internal Network means the host is not on `rivermark-lan`. This is a feature. But you need a way to move sanitized logs into the Git repo without bridged networking. Shared folders give the VM a permanent writable view of your real user profile — that is a trust risk.
 
-**Procedure:**
+**Procedure (Mission 2+):**
 
 1. Power off `rivermark-portal`.
 2. Add a Host-only adapter (second NIC).
 3. Boot. The host can now reach the portal on a separate host-only subnet (e.g., `192.168.56.0/24`).
 4. From the host, `scp` the sanitized log file out.
-5. Power off. Remove the Host-only adapter.
+5. Power off. Disconnect the Host-only adapter (do not delete — same netplan reasoning).
 6. Sanitize the file on the host (remove real IPs, usernames if needed).
 7. Commit to Git.
+
+**Note:** For Mission 2, you will not need SCP yet. You can paste evidence from the VM console. This procedure becomes relevant when evidence transfer becomes the bottleneck. Later, the realistic pattern is a persistent Host-only on the portal only, acting as a management plane. We will revisit then.
 
 **Never** give the VM a permanent writable view of your real user profile.
 
@@ -183,7 +206,7 @@ See `docs/lab-charter.md` Section 5 for the full hardware tier decision.
 | VM | RAM |
 |---|---|
 | kali-offsec | 2 GB |
-| rivermark-portal | 2 GB |
+| rivermark-portal | 2 GB (can go to 2560–3072 MB if MySQL + nginx cause swapping) |
 | Host reserve | 6–8 GB |
 
 **Extended Lab (sequential, never simultaneous):**
@@ -195,6 +218,8 @@ See `docs/lab-charter.md` Section 5 for the full hardware tier decision.
 
 **Rule:** `rivermark-ws01` and `rivermark-siem` never run at the same time on this host. Power on only what the current mission needs. Snapshot the rest.
 
+**Do not steal RAM from the host reserve** to make the portal larger. If the portal needs more, accept the swap or move to a larger host.
+
 ---
 
 ## 9. Boot and Addressing Notes
@@ -205,7 +230,7 @@ See `docs/lab-charter.md` Section 5 for the full hardware tier decision.
 - Kali: NetworkManager or `/etc/network/interfaces`
 - Windows: Network adapter settings
 
-**The host cannot ping the lab on Internal Network.** This is intentional. If you need host-to-lab access, add a temporary Host-only adapter, then remove it.
+**The host cannot ping the lab on Internal Network.** This is intentional. If you need host-to-lab access, connect the temporary Host-only adapter, then disconnect it.
 
 **Default route behavior with dual NICs:**
 
@@ -213,15 +238,8 @@ See `docs/lab-charter.md` Section 5 for the full hardware tier decision.
 - Traffic to `10.20.30.20` uses the Internal interface (directly connected network).
 - This is why Kali never gets NAT.
 
----
+**After every adapter change, verify:**
 
-## 10. Diagram Maintenance
-
-Update this document when:
-
-- A new VM is added.
-- An IP address changes.
-- A network mode changes.
-- A new network segment is added.
-
-Keep diagrams in ASCII or draw.io. Commit changes with a meaningful message.
+```bash
+ip addr          # confirm IPs
+ip route         # confirm no surprise default route

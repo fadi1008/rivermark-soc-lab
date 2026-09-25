@@ -61,15 +61,15 @@ The lab is built progressively.
 
 | Asset | OS | Role | IP | RAM |
 |---|---|---|---|---|
-| rivermark-portal | Ubuntu Server 24.04 | Web app, MySQL, SSH. Main target and crown jewel. | 10.20.30.20 | [your value] |
-| kali-offsec | Kali Linux | Attacker machine. Used only for controlled security testing. | 10.20.30.10 | [your value] |
+| rivermark-portal | Ubuntu Server 24.04 | Web app, MySQL, SSH. Main target and crown jewel. | 10.20.30.20 | 2 GB |
+| kali-offsec | Kali Linux | Adversary. Controlled security testing only. | 10.20.30.10 | 2 GB |
 
-### Extended Lab — later
+### Extended Lab — later (sequential, never simultaneous)
 
 | Asset | OS | Role | IP | RAM |
 |---|---|---|---|---|
-| rivermark-ws01 | Windows 10/11 | Analyst workstation, local research files, browser sessions. | 10.20.30.30 | [your value] |
-| rivermark-siem | Ubuntu Server | Wazuh all-in-one. Log collection, detection, investigation. | 10.20.30.40 | [your value] |
+| rivermark-ws01 | Windows 10/11 | Analyst workstation, local research files, browser sessions. | 10.20.30.30 | 4 GB |
+| rivermark-siem | Ubuntu Server | Wazuh all-in-one. Log collection, detection, investigation. | 10.20.30.40 | 6 GB |
 
 ### Advanced Lab — much later
 
@@ -77,8 +77,6 @@ The lab is built progressively.
 - pfSense firewall VM
 - Active Directory domain controller
 - Additional network segments
-
----
 
 ## 4. Network Design
 
@@ -102,18 +100,23 @@ The lab is built progressively.
 
 ### Update rule
 
-Only rivermark-portal ever gets a temporary NAT adapter. Procedure:
+Only rivermark-portal ever gets a NAT adapter. Kali never gets NAT.
+
+- Adapter 1: Internal rivermark-lan — static 10.20.30.20/24, no gateway. Always attached.
+- Adapter 2: NAT — present in VM config. Cable disconnected by default.
+
+Procedure:
 1. Snapshot before.
-2. Power off. Add NAT adapter.
-3. Boot. Confirm `ip route` shows NAT as default.
-4. Run updates.
-5. Power off. Remove NAT adapter entirely.
-6. Boot. Confirm no default route via NAT.
-7. Snapshot after: `post-update-clean`.
+2. Tick Cable Connected on Adapter 2.
+3. Boot. Confirm `ip route show default` shows NAT as default.
+4. apt update / upgrade.
+5. Untick Cable Connected on Adapter 2.
+6. Confirm `ip route show default` no longer shows a default route.
+7. Snapshot after: post-update-clean.
 
 ### Evidence transfer rule
 
-Use a temporary Host-only adapter. Add, SCP, remove. Never permanent shared folders. Sanitize on host before commit.
+Use a temporary Host-only adapter. Connect, SCP, disconnect. Never permanent shared folders. Sanitize on host before commit. Not needed for Mission 2.
 
 ## 5. Hardware Tier Decision
 
@@ -124,8 +127,8 @@ Use a temporary Host-only adapter. Add, SCP, remove. Never permanent shared fold
 | Host OS | Windows 11 |
 | Total RAM | 16 GB |
 | Free RAM (typical) | ~8 GB |
-| CPU cores | [your value] |
-| Free disk | [your value] |
+| CPU cores | 8 |
+| Free disk | 150 GB |
 | Virtualization enabled | Yes |
 
 **Tier decision:** Core Lab. Extended is sequential, not simultaneous.
@@ -137,7 +140,7 @@ Use a temporary Host-only adapter. Add, SCP, remove. Never permanent shared fold
 | VM | RAM |
 |---|---|
 | kali-offsec | 2 GB |
-| rivermark-portal | 2 GB |
+| rivermark-portal | 2 GB (can go to 2560–3072 MB if MySQL + nginx cause swapping) |
 | Host reserve | 6–8 GB |
 
 **Extended Lab RAM allocation (sequential):**
@@ -148,6 +151,8 @@ Use a temporary Host-only adapter. Add, SCP, remove. Never permanent shared fold
 | rivermark-siem | 6 GB |
 
 **VMs that will never run at the same time:** rivermark-ws01 and rivermark-siem.
+
+**Rule:** Do not steal RAM from the host reserve to enlarge any lab VM. If a VM needs more, accept the swap or move to a larger host.
 
 ## 6. Isolation — "Will Never" List
 
