@@ -237,3 +237,72 @@ Kali:
 
 
 
+
+## 2026-10-09 — Mission 3 Task B: Account creation and privilege boundary
+
+### Accounts created on rivermark-portal
+
+| Account | UID | Shell | sudo? | passwd -S |
+|---|---|---|---|---|
+| sysadmin | 1001 | /bin/bash | yes — (ALL : ALL) ALL | P |
+| dev_amine | 1002 | /bin/bash | no | P |
+| dev_sarah | 1003 | /bin/bash | no | P |
+| contractor_old | 1004 | /usr/sbin/nologin | no | L |
+
+All accounts persist after reboot.
+
+### Privilege boundary
+
+- `sysadmin` is the only account with sudo.
+- `dev_amine` and `dev_sarah` cannot run sudo.
+- `contractor_old` cannot authenticate (locked) and cannot get a shell (nologin).
+- Verified with `sudo -l -U <user>` — the effective policy check, not group membership alone.
+
+### Method for contractor_old
+
+- `adduser --disabled-password --gecos "Former Contractor" contractor_old`
+- `usermod -s /usr/sbin/nologin contractor_old`
+- `passwd -l contractor_old`
+
+Two independent controls: locked password + nologin shell. Locking alone still allows login if the password is reset; nologin alone still permits authentication attempts. Doing both means the account cannot be used at all.
+
+### Why keep contractor_old instead of deleting it
+
+Deleting the account removes it from `/etc/passwd` — it becomes invisible. Any later authentication attempt would fail silently with no user record to correlate. Keeping it disabled preserves the identity so that any attempt to use it is **visible in the logs** and can trigger a detection.
+
+In production, we would keep it for the same reason: "this user should not have come back" is a useful alert, and deleted accounts cannot produce it.
+
+### Verification commands
+
+- `id <user>` — confirm UID, GID, supplementary groups
+- `sudo -l -U <user>` — confirm effective sudo policy
+- `sudo passwd -S <user>` — confirm password state (P = set, L = locked, NP = no password)
+- `ssh contractor_old@10.20.30.20` from Kali — `Permission denied`
+- `sudo su - contractor_old` on the portal — `This account is currently not available.`
+
+### Investigation answers
+
+**1. `adduser` vs `useradd`:**
+`useradd` is the low-level binary. It creates the account but does not create a home directory by default, does not prompt for a password, and does not copy `/etc/skel`. `adduser` is a friendly wrapper around `useradd` — it creates the home directory, prompts for a password, copies skeleton files, and adds the user to standard groups.
+
+**2. `passwd -l`, `usermod -L`, `usermod -s /usr/sbin/nologin`:**
+- `passwd -l` prepends `!` to the password hash in `/etc/shadow`. The user cannot authenticate.
+- `usermod -L` does effectively the same (locks the password field).
+- `usermod -s /usr/sbin/nologin` changes the login shell. Even if authentication succeeded, the shell immediately exits. No interactive session.
+
+They are different controls and combine for stronger protection.
+
+**3. `/etc/sudoers.d/` vs editing `/etc/sudoers`:**
+`/etc/sudoers.d/` is a drop-in directory. Each rule is a small file. Advantages: (a) a syntax error breaks only that file, not sudo globally; (b) package upgrades that replace `/etc/sudoers` do not overwrite drop-ins; (c) easier to audit and remove.
+
+**4. `sudo -l -U dev_amine`:**
+It asks sudo "what is dev_amine allowed to run?" without logging in as that user. It is the correct verification because it shows the **effective** policy. A user could be in the `sudo` group with no rules, or not in the group but with rules via a drop-in. `sudo -l -U` is the ground truth.
+
+**5. `passwd -S dev_amine`:**
+Output format: `username status last_change min max warn inactive expire`.
+Second field is status: `P` = password set, `L` = locked, `NP` = no password. This is the field detection rules will use to distinguish locked vs active accounts.
+
+### Lesson
+
+An account left behind is an identity an attacker does not have to create. Disabled is not deleted — disabled is detectable.
+
