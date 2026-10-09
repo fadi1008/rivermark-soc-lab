@@ -378,3 +378,27 @@ If `ListenAddress 10.20.30.20` were set in sshd_config:
 
 Binding to a single IP is a valid production control, but it must match the operational reality. In this lab, the portal must be reachable on both planes.
 
+
+
+## 2026-10-09 — Still-open answers (from Mission 2 review)
+
+1. **Wait-online change:** systemd drop-in override at
+   `/etc/systemd/system/systemd-networkd-wait-online.service.d/override.conf`
+   with: 
+[Service]
+ExecStart=
+ExecStart=/bin/true
+Result: boot time 3 min → 13 s. No netplan `optional: true` set.
+
+2. **Which clock is ahead:** Neither. Portal and Kali show the same UTC time
+within seconds. The earlier 20-second difference was typing latency.
+
+3. **Which Windows adapter owns the home gateway:** Wi-Fi 2
+(172.16.20.238/24) with gateway 172.16.20.1. The earlier 172.16.48.1
+was a previous Wi-Fi network's gateway; no longer present.
+Ethernet 2 is the VirtualBox Host-only adapter (192.168.56.1/24),
+no gateway.
+
+4. **ISO hash match:** Yes. Ubuntu 24.04.5 Server,
+sha256 = 97f3d7ffb032c3eb3b23d2c8be9cc76e60c2c1f2c0146ba5ba9fe01cafae0fd8,
+verified against Canonical on 2026-09-25.

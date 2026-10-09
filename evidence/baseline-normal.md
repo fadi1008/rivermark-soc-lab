@@ -72,7 +72,7 @@ These are findings. They are intentional today so later missions can test detect
 | Finding | Why it is not production-ready | Lab decision |
 |---|---|---|
 | **Password authentication is enabled** | Production best practice is SSH keys only | Kept on. Later missions will detect brute-force. |
-| **`contractor_old` still exists in `/etc/passwd`** | Former employees should be fully removed after a retention period | Kept locked. Later missions will detect attempts against it. |
+| **`contractor_old` exists in `/etc/passwd` (locked, nologin, no sudo)** | Not a defect — this is a detection target. Deleting the account removes the signal. | Kept deliberately. Any authentication attempt is a finding. |
 | **sshd listens on all interfaces (`0.0.0.0:22`)** | Production would bind to specific interfaces or use a bastion | Kept open on both planes. This is the finding. |
 | **No central logging / no SIEM** | Production sends logs off-host to a SIEM | Local journald + rsyslog only. Wazuh comes in Extended Lab. |
 | **No firewall (`ufw` inactive)** | Production would filter by port and source | Kept open. Later missions test what this exposes. |
