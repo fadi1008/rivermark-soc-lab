@@ -209,3 +209,49 @@ git add evidence/baseline-ssh-auth.md
 git commit -m "Mission 3 Task D: five SSH events captured, sudo-not-in-sshd finding documented"
 git push
 ```
+
+
+---
+
+## Event 6 — Invalid user (nonexistent account) from Kali
+
+- UTC time (from Kali): 2026-10-09 15:51:39
+- Source IP: 10.20.30.10 (Kali, lab LAN)
+- Full journal block:
+
+```text
+Oct 09 15:51:39 rivermark-portal sshd[2311]: Invalid user no_such_user from 10.20.30.10 port 43056
+Oct 09 15:51:42 rivermark-portal sshd[2311]: pam_unix(sshd:auth): check pass; user unknown
+Oct 09 15:51:42 rivermark-portal sshd[2311]: pam_unix(sshd:auth): authentication failure; rhost=10.20.30.10
+Oct 09 15:51:44 rivermark-portal sshd[2311]: Failed password for invalid user no_such_user from 10.20.30.10 port 43056 ssh2
+Oct 09 15:51:47 rivermark-portal sshd[2311]: Connection closed by invalid user no_such_user 10.20.30.10 port 43056 [preauth]
+```
+
+- The single line I would keep:
+
+```text
+Oct 09 15:51:44 rivermark-portal sshd[2311]: Failed password for invalid user no_such_user from 10.20.30.10 port 43056 ssh2
+```
+
+### Difference vs `Failed password for contractor_old`
+
+- `Failed password for contractor_old` → the username exists in `/etc/passwd`; the password was wrong.
+- `Failed password for invalid user no_such_user` → the username does not exist, so the login could never succeed, whatever password was typed.
+
+The literal substring `invalid user` is the discriminator. It appears in three of the five lines (the first `Invalid user`, the `Failed password for invalid user`, and the `Connection closed by invalid user`).
+
+### What an attacker learns from the difference
+
+**User enumeration.** The attacker does not see these log lines. From the client side, both cases return the same `Permission denied`. But if the server leaks the difference some other way (for example, a different response time), the attacker can separate:
+- Real accounts → worth password-guessing
+- Nonexistent accounts → wasted attempts
+
+On the defender side, the logs *do* show the difference. A defender who only watches for `Failed password for <name>` will miss enumeration entirely. Detection rules must match both patterns:
+- `Failed password for <user>` — real account, wrong password
+- `Failed password for invalid user <user>` — enumeration attempt
+
+A burst of `invalid user` from one source is a stronger signal of scanning than a burst of failed passwords against one real account.
+
+### Note
+
+`pam_unix(sshd:auth): check pass; user unknown` is PAM's line for the same event. It appears only for nonexistent users. It is useful if a detection is built on PAM output rather than sshd output.
