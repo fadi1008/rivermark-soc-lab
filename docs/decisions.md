@@ -402,3 +402,88 @@ no gateway.
 4. **ISO hash match:** Yes. Ubuntu 24.04.5 Server,
 sha256 = 97f3d7ffb032c3eb3b23d2c8be9cc76e60c2c1f2c0146ba5ba9fe01cafae0fd8,
 verified against Canonical on 2026-09-25.
+
+
+
+
+
+
+
+
+## 2026-10-09 — Mission 4 Task C: App user, drafts, permissions
+
+### App user
+
+`rivermark` is a system account created with:
+
+    sudo adduser --system --group --no-create-home --shell /usr/sbin/nologin rivermark
+
+Properties:
+- No shell (`/usr/sbin/nologin`)
+- No home directory
+- No password
+- Cannot SSH
+- Cannot log in interactively
+
+The web application will run as this user. If the app is compromised, the attacker gets the privileges of this account only — nothing more.
+
+### Drafts directory
+
+Location: `/srv/rivermark/drafts/`
+Owner: `rivermark:rivermark`
+Directory mode: `750` on both `/srv/rivermark` and `/srv/rivermark/drafts`
+File mode: `640`
+
+Three fictional drafts created:
+
+- `draft-001-acme.txt`
+- `draft-002-borealis.txt`
+- `draft-003-cygnus.txt`
+
+All contents are fictional. No real company, financial, or personal data.
+
+### Access matrix (verified)
+
+| Actor | Can list drafts | Can read drafts | Method |
+|---|---|---|---|
+| rivermark (app user) | Yes | Yes | Owner, mode 640 |
+| dev_amine | No | No | Not in `rivermark` group; others get `---` on 750/640 |
+| dev_sarah | No | No | Same |
+| sysadmin (normal) | No | No | Same |
+| sysadmin (sudo) | Yes | Yes | Root bypasses file permissions |
+| contractor_old | N/A | N/A | Cannot log in |
+
+### Test results
+
+- `sudo -u rivermark cat /srv/rivermark/drafts/draft-001-acme.txt` → success
+- `cat /srv/rivermark/drafts/draft-001-acme.txt` as `dev_amine` → `Permission denied`
+- `ls /srv/rivermark/drafts/` as `dev_amine` → `Permission denied`
+- `ls /srv/rivermark/` as `dev_amine` → `Permission denied` (cannot traverse the parent)
+- `cat /srv/rivermark/drafts/draft-001-acme.txt` as `sysadmin` → `Permission denied`
+- `sudo cat /srv/rivermark/drafts/draft-001-acme.txt` as `sysadmin` → success
+
+### Accepted risk
+
+`sysadmin` can read the drafts via `sudo`, because `/etc/sudoers` grants `(ALL : ALL) ALL`. In production, sudo would be restricted to specific commands and file reads would be audited. For the lab, this is an accepted risk and will be revisited during hardening.
+
+### Why this matters
+
+Unix file permissions are the control that still matters after the login page is bypassed. If a web vulnerability lets an attacker read files, they read them **as the `rivermark` user**. That user has access only to `/srv/rivermark/drafts/`. The attacker cannot pivot to `/home/dev_amine` or `/etc/shadow` through the file read alone.
+
+### Glob expansion lesson
+
+**Problem:** `sudo chown rivermark:rivermark /srv/rivermark/drafts/*.txt` failed with:
+
+    chown: cannot access '/srv/rivermark/drafts/*.txt': No such file or directory
+
+**Cause:** The glob `*.txt` is expanded by the shell (running as `sysadmin`) **before** `sudo` is invoked. Since `sysadmin` cannot list `/srv/rivermark/drafts/`, the glob does not match and the literal string `*.txt` is passed to `chown`. `chown` then looks for a file literally named `*.txt` and fails.
+
+**Fix:** Run the glob inside a root shell, either with `sudo bash -c '...'` or by using `find`, which does not rely on shell globbing:
+
+    sudo find /srv/rivermark/drafts -type f -name '*.txt' -exec chown rivermark:rivermark {} +
+    sudo find /srv/rivermark/drafts -type f -name '*.txt' -exec chmod 640 {} +
+
+**Lesson:** Shell globs expand with the permissions of the calling shell, not the command's effective user. When a directory is not listable by the calling user, use `find` or wrap the command in `sudo bash -c`.
+
+
+
