@@ -306,3 +306,75 @@ Second field is status: `P` = password set, `L` = locked, `NP` = no password. Th
 
 An account left behind is an identity an attacker does not have to create. Disabled is not deleted — disabled is detectable.
 
+
+
+
+
+## 2026-10-09 — Mission 3 Task C: SSH paths proven
+
+### SSH listener
+
+`ss -tlnp | grep :22` shows sshd listening on `0.0.0.0:22` and `[::]:22` — all interfaces. The portal is reachable on both the lab LAN (`enp0s3`, 10.20.30.20) and the management plane (`enp0s9`, 192.168.56.20).
+
+### SSH daemon configuration
+
+`sudo sshd -T | grep -Ei 'permitroot|passwordauthentication|pubkeyauthentication|port '`:
+
+- `port 22`
+- `permitrootlogin without-password` — root cannot log in with a password
+- `pubkeyauthentication yes`
+- `passwordauthentication yes` — the company still uses passwords. Finding for later, not a bug today.
+
+### Firewall
+
+`ufw` is inactive. No filtering. Finding to revisit in the hardening phase.
+
+### Path 1 — Kali → portal (lab LAN)
+
+- Command: `ssh dev_amine@10.20.30.20` from Kali
+- Result: success
+- Session: `dev_amine@rivermark-portal`
+- Source IP the portal sees: `10.20.30.10`
+- `id` → uid=1002, groups dev_amine + users
+- `sudo -l` → "user dev_amine may not run sudo on rivermark-portal"
+
+### Path 2 — Windows → portal (management plane)
+
+- Command: `ssh sysadmin@192.168.56.20` from Windows PowerShell
+- Result: success
+- Session: `sysadmin@rivermark-portal`
+- Source IP the portal sees: `192.168.56.1`
+- `sudo id` → `uid=0(root) gid=0(root)`
+
+### Control — Kali → management plane
+
+- `ssh dev_amine@192.168.56.20` → `Network is unreachable`
+- `ping -c 2 192.168.56.20` → `Network is unreachable`
+- Confirms Kali has no route to `192.168.56.0/24`. Management plane is portal-only.
+
+### Concurrent sessions observed
+
+While both paths were active:
+
+`who` showed:
+
+    sysadmin   pts/0  2026-10-09 14:11 (192.168.56.1)
+    dev_amine  pts/1  2026-10-09 14:12 (10.20.30.10)
+
+`ss -tnp | grep :22` showed:
+
+    ESTAB  10.20.30.20:22    10.20.30.10:51752    ← Kali (lab LAN)
+    ESTAB  192.168.56.20:22  192.168.56.1:61102   ← Windows (management plane)
+
+Two planes are active at the same time. The server records the source IP of the interface the connection arrived on. This is the basis for later source-vs-plane detection.
+
+### Deeper — what would break if sshd were bound to 10.20.30.20 only
+
+If `ListenAddress 10.20.30.20` were set in sshd_config:
+
+- Windows could no longer SSH to `192.168.56.20`. The management plane would break.
+- The only path into the portal would be from the lab LAN, which is the attacker's network.
+- Loss-of-management-plane scenario: if the lab LAN is flooded or blocked, there would be no out-of-band path.
+
+Binding to a single IP is a valid production control, but it must match the operational reality. In this lab, the portal must be reachable on both planes.
+
