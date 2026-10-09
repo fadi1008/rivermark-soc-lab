@@ -173,3 +173,67 @@ Portal and Kali both show UTC. Skew is ~20 seconds between them. Acceptable for 
 - Kali: `m2-on-rivermark-lan` — fully configured attacker VM
 
 For Mission 3 onwards, restore from `m2-portal-boot-fixed` and `m2-on-rivermark-lan`.
+
+
+
+
+
+## 2026-10-09 — Mission 3 Task A: Management plane + shared folder finding
+
+### Management plane documented
+
+**Decision:** The Host-only adapter on the portal (`enp0s9`, `192.168.56.20/24`) is a management plane, not a lab LAN. It is used only for operator access from the Windows host. Kali is never on `192.168.56.0/24`.
+
+**Rules:**
+- Only the portal has the Host-only NIC.
+- Kali is on `rivermark-lan` only.
+- No default route via `192.168.56.1` on either side.
+- Shared folders are off on both VMs.
+- Attack tools never run from the Windows host. The host is the operator, not the adversary.
+- SSH from Windows uses `192.168.56.20` → `sysadmin` only.
+- SSH from Kali uses `10.20.30.20` → developers only.
+
+**Verification:**
+- Portal `ip -br a`: `enp0s3 10.20.30.20/24`, `enp0s9 192.168.56.20/24`
+- Portal `ip route`: no default route
+- Kali `ip -br a`: `eth0 10.20.30.10/24`, `eth1` DOWN
+- Kali `ip a | grep 192.168.56`: empty output — confirmed Kali is not on the management plane
+- Kali `ip route`: no default route
+
+### Shared folder finding (failed control)
+
+**Finding:** Both VMs had VirtualBox shared folders enabled:
+- `hadoop` → `C:\Users\fadib\Desktop\hadoop` (inside real user profile)
+- `mediasf_win` → `C:\mediasf_win` (at C: root)
+
+**Risk:** The lab VMs had write access to my real Windows user profile. This violates the charter's trust boundary rule: "the lab VM should not get a permanent, writable view of your real user profile."
+
+**Action:**
+- Removed both shared folders from VirtualBox settings on both VMs.
+- Unmounted leftover `vboxsf` mounts inside each VM.
+- Removed empty `/media/sf_*` directories.
+- Rebooted both VMs.
+
+**Verification after reboot:**
+
+Portal:
+- `ls /media/` → empty
+- `mount | grep -i vbox` → empty
+
+Kali:
+- `ls /media/` → only `cdrom`, `cdrom0`
+- `mount | grep -i vbox` → empty
+- `lsmod | grep vbox` → `vboxguest` still loaded (Guest Additions fine, shared folders gone)
+
+**Lesson:** VirtualBox shared folders cross the trust boundary the charter defines. Guest Additions alone (clipboard, drag-and-drop) is acceptable. Shared folders into the real user profile are not.
+
+### Senior review answers
+
+1. **Kali adapter list:** `eth0` = Internal (`rivermark-lan`), `eth1` = NAT (cable disconnected). No Host-only NIC. Shared folders: removed on 2026-10-09.
+2. **Wait-online change:** systemd drop-in override at `/etc/systemd/system/systemd-networkd-wait-online.service.d/override.conf` with `ExecStart=/bin/true`. Result: boot time 3 min → 13 s.
+3. **Clock skew direction:** No measurable skew. Both VMs show the same UTC time within a few seconds. The earlier 20-second difference was typing latency between terminals, not clock drift.
+4. **Windows adapter 172.16.48.1:** No longer present. Current home gateway is `172.16.20.1` on adapter `Wi-Fi 2` (`172.16.20.238/24`). The earlier `172.16.48.1` was a previous network's gateway. `Ethernet 2` is the VirtualBox Host-only adapter (`192.168.56.1/24`) with no gateway — correct and intentional.
+5. **ISO hash in decisions.md:** yes — Ubuntu 24.04.5, SHA256 verified against Canonical on 2026-09-25.
+
+
+
