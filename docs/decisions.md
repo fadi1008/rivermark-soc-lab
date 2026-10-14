@@ -489,6 +489,7 @@ Unix file permissions are the control that still matters after the login page is
 
 
 
+
 ## 2026-10-10 — Mission 4 Task D: Python app + nginx deployed
 
 ### Files and locations
@@ -508,7 +509,7 @@ Unix file permissions are the control that still matters after the login page is
 | rivermark app | 127.0.0.1:8080 | **No** | `curl http://10.20.30.20:8080/login` → `000` (refused) |
 | nginx | 0.0.0.0:80 | Yes | `curl http://10.20.30.20/login` → `200` |
 
-**Finding:** the app is not exposed on the lab LAN. Only nginx is. This is the second isolation proof after Mission 2 — a listener at a different port (8080) can be proved closed just like a network route can be proved unreachable.
+**Finding:** The app is not exposed on the lab LAN. Only nginx is. This is the second isolation proof after Mission 2 — a listener at a different port (8080) can be proved closed just like a network route can be proved unreachable.
 
 ### HTTP status behavior
 
@@ -527,4 +528,60 @@ Unix file permissions are the control that still matters after the login page is
 
 ### Source IP attribution — verified
 
-App log (journald):
+**App log (journald):**
+
+```text
+login failure user=analyst_yassine from=10.20.30.10
+login success user=analyst_yassine from=10.20.30.10
+```
+
+**nginx access log:**
+
+```text
+10.20.30.10 - - [...] "POST /login HTTP/1.1" 200 ...
+10.20.30.10 - - [...] "POST /login HTTP/1.1" 302 ...
+```
+
+Both logs show the **real client IP** (`10.20.30.10`), not `127.0.0.1`. This confirms nginx is passing `X-Real-IP` correctly.
+
+### Session behavior
+
+- Sessions stored in a module-level Python dict `SESSIONS = {}`
+- Not persisted to disk — lost on service restart
+- No expiry — a session lives until the process dies
+- Not thread-locked — acceptable for the lab
+- Cookie is `HttpOnly` but not `Secure` (no HTTPS)
+- Logout deletes the token and clears the cookie
+
+### Security choices
+
+1. **Password storage:** Plaintext at `/etc/rivermark/secret`, mode 640, owner `rivermark:rivermark`. Not in Git, not world-readable. In production, this would be hashed (bcrypt/argon2) and stored in a database or a vault.
+
+2. **HTTP not HTTPS:** All traffic between Kali and nginx is cleartext. On the isolated lab LAN this is acceptable. In production, TLS would be required.
+
+3. **No CSRF protection on POST /logout:** A low-impact weakness for the lab.
+
+4. **No rate limiting on POST /login:** Intentional — later missions will generate brute-force traffic and see it in the log.
+
+5. **No Content-Security-Policy header:** Acceptable because the app escapes HTML in draft contents.
+
+### systemd hardening
+
+- `User=rivermark` — not root
+- `NoNewPrivileges=true` — no setuid escalation
+- `ProtectSystem=strict` — filesystem read-only except explicit paths
+- `ProtectHome=true` — `/home/*` invisible to the app
+- `ReadWritePaths=/srv/rivermark` — only drafts directory writable
+- `ReadOnlyPaths=/etc/rivermark` — secret file read-only
+
+### App source ownership
+
+`/opt/rivermark/app.py` is owned by `root:root`, mode 644. The app user `rivermark` cannot modify its own source. This prevents an attacker who compromises the app from persisting code changes.
+
+### Accepted risks
+
+- Plaintext web password in `/etc/rivermark/secret`
+- Sessions in memory, lost on restart, no expiry
+- HTTP only, no TLS
+- Same HTTP status for failed login and GET /login (both 200)
+- No CSRF, no rate limiting, no CSP
