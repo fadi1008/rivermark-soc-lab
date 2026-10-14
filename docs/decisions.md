@@ -585,3 +585,60 @@ Both logs show the **real client IP** (`10.20.30.10`), not `127.0.0.1`. This con
 - HTTP only, no TLS
 - Same HTTP status for failed login and GET /login (both 200)
 - No CSRF, no rate limiting, no CSP
+
+
+
+## 2026-10-10 — Mission 4 Task E: HTTP actions and log comparison
+
+### Six actions from Kali
+
+| # | Action | HTTP | nginx log | App log |
+|---|---|---|---|---|
+| 1 | Failed login | 200 | `POST /login 200` | `login failure user=analyst_yassine from=10.20.30.10` |
+| 2 | Success login | 302 | `POST /login 302` | `login success user=analyst_yassine from=10.20.30.10` |
+| 3 | List drafts (with cookie) | 200 | `GET /drafts 200` | (none) |
+| 4 | Open draft (with cookie) | 200 | `GET /drafts/draft-001-acme.txt 200` | (none) |
+| 5 | /drafts without cookie | 302 | `GET /drafts 302` | (none) |
+| 6 | /admin (not found) | 404 | `GET /admin 404` | (none) |
+
+### Finding 1 — nginx and app log different scopes
+
+- **nginx** logs **every request** — GET, POST, 200, 302, 404, all with source IP and user agent.
+- **app** logs **only login attempts** — success and failure — with username and source IP.
+
+Neither alone is complete. nginx alone cannot say **who** logged in (username is in the POST body, not the URL). app alone cannot say **what was accessed** after login.
+
+**For detection:** login failures require the app log. Post-login activity requires the nginx log. A rule that watches only one log will miss the other's events.
+
+### Finding 2 — nginx can distinguish login success from failure
+
+Because the app returns `200` for failed login and `302` for successful login, nginx's access log **does** distinguish them by status code.
+
+If the app had returned `200` for both (the mission's default scenario), nginx would not distinguish them at all.
+
+**Discovery checkpoint answer:** nginx alone can answer "did a login succeed?" but not "did Yassine log in?" because the username is in the POST body and is not logged by nginx in default configuration.
+
+### Finding 3 — Portal clock drift (real issue)
+
+- Kali reports: `2026-10-14 13:55:39 UTC`
+- Portal reports: `2026-10-10 21:07:43` (in nginx access log)
+
+The six actions were performed once — the intervals match between Kali and Portal (5s, 10s, 6s, 7s, 7s between actions). But the portal clock shows **4 days behind** the actual time.
+
+**Cause:** the portal has no route off the lab, so it cannot reach NTP. Its clock is not being synchronized. In Mission 3 the skew was negligible; it has since drifted significantly.
+
+**Impact:** without corrected time, correlating portal events with events from other systems (Kali, future Wazuh) is unreliable.
+
+**Action:** do NOT fix now — capture the finding. Fix in the hardening phase with either:
+- A local NTP server inside the lab, OR
+- A scheduled time sync via the management plane, OR
+- Accept the skew and record offsets in the baseline.
+
+### Finding 4 — App logs only logins, not reads
+
+The app writes to the journal only on login attempts. Reading drafts does not log anything. This is by design: the app does not have a per-request access log. nginx serves that role.
+
+**Consequence:** a detection rule that watches the app journal will miss:
+- Requests to `/drafts` without a session (redirects)
+- Requests to nonexistent paths
+- Reads of specific drafts after successful login
