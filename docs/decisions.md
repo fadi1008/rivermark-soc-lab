@@ -487,3 +487,44 @@ Unix file permissions are the control that still matters after the login page is
 
 
 
+
+
+## 2026-10-10 — Mission 4 Task D: Python app + nginx deployed
+
+### Files and locations
+
+| Path | Purpose | Owner | Mode |
+|---|---|---|---|
+| /opt/rivermark/app.py | Python app (stdlib only) | root:root | 644 |
+| /etc/rivermark/secret | Web password file (`analyst_yassine:369258147`) | rivermark:rivermark | 640 |
+| /etc/systemd/system/rivermark-portal.service | systemd unit | root:root | 644 |
+| /etc/nginx/sites-available/rivermark | nginx site config | root:root | 644 |
+| /etc/nginx/sites-enabled/rivermark | symlink → sites-available | — | — |
+
+### Network exposure
+
+| Process | Binds | Reachable from Kali? | Proof |
+|---|---|---|---|
+| rivermark app | 127.0.0.1:8080 | **No** | `curl http://10.20.30.20:8080/login` → `000` (refused) |
+| nginx | 0.0.0.0:80 | Yes | `curl http://10.20.30.20/login` → `200` |
+
+**Finding:** the app is not exposed on the lab LAN. Only nginx is. This is the second isolation proof after Mission 2 — a listener at a different port (8080) can be proved closed just like a network route can be proved unreachable.
+
+### HTTP status behavior
+
+| Action | Status | Why |
+|---|---|---|
+| GET /login | 200 | Login form |
+| POST /login (wrong password) | 200 | Form re-rendered with error |
+| POST /login (correct password) | 302 | Redirect to /drafts + Set-Cookie |
+| GET /drafts (no cookie) | 302 | Redirect to /login |
+| GET /drafts (with cookie) | 200 | HTML listing |
+| GET /drafts/<file> (with cookie) | 200 | Draft contents |
+| GET /drafts/<file> (no cookie) | 302 | Redirect |
+| Unknown path | 404 | Not found |
+
+**Consequence for detection:** nginx's access log **can** distinguish failed from successful login by status code — `POST /login 200` vs `POST /login 302`. This differs from the mission's default scenario where both might return 200.
+
+### Source IP attribution — verified
+
+App log (journald):
