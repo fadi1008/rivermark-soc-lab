@@ -149,3 +149,66 @@ Detection can be built on either. journald is preferable because fields like `_S
 ---
 
 **End of baseline.**
+
+
+---
+
+## 10. HTTP portal — normal activity
+
+### Who uses the portal
+
+- `analyst_yassine` — the web user. Logs in from the lab LAN (Kali at 10.20.30.10 in Core Lab).
+- No one else has web credentials in this lab.
+- The portal is reachable only on port 80 (nginx). The app itself is on `127.0.0.1:8080` and is not exposed.
+
+### What a normal session looks like
+
+1. `GET /login` → returns the login form (200)
+2. `POST /login` with correct password → 302 redirect to `/drafts`
+3. `GET /drafts` with valid cookie → HTML list of three fictional drafts (200)
+4. `GET /drafts/draft-001-acme.txt` with valid cookie → the draft contents (200)
+5. `POST /logout` → 302 redirect to `/login`
+
+### What is not normal
+
+- `POST /login` returning 200 repeatedly from the same source in a short window — brute-force pattern
+- `POST /login` with a username other than `analyst_yassine`
+- `GET /drafts` without a cookie (302) many times — probing
+- `GET /admin`, `GET /wp-login`, or other paths that do not exist — scanning
+- Requests from IPs other than `10.20.30.10`
+- The app binding to `0.0.0.0` instead of `127.0.0.1` (would mean exposure)
+- Any successful login followed by unusual requests (unusual paths, unusual user-agent)
+
+### What is not production-ready (accepted in the lab)
+
+- HTTP only — no TLS
+- Password stored in plaintext at `/etc/rivermark/secret`
+- Sessions in memory, lost on restart, no expiry
+- No CSRF protection
+- No rate limiting
+- App journal logs only login attempts, not reads
+- nginx access log does not log POST bodies — username is not visible
+
+### Detection implication — two logs, two scopes
+
+| Question | nginx log | App journal |
+|---|---|---|
+| Every request | Yes | No |
+| HTTP status | Yes | No |
+| Username in login | **No** | Yes |
+| Login result | Only via status | Yes, explicit |
+| Draft reads | Yes | No |
+
+**To detect a login failure, watch the app journal.**
+**To detect post-login activity, watch the nginx log.**
+**Neither log alone is sufficient.**
+
+### Clock
+
+The portal clock is currently **4 days behind** real time and not synchronized (no route to NTP). Incident reports in the lab must record both the portal time and the real UTC time to avoid confusion. This will be fixed in hardening.
+
+### nginx alone cannot answer "did Yassine log in?"
+
+nginx can see `POST /login 200` (failure) vs `POST /login 302` (success) — so it can tell **a login succeeded or failed**. But it cannot tell **who** logged in, because the username is in the POST body and nginx does not log request bodies by default.
+
+**The app journal is required to answer who.**
