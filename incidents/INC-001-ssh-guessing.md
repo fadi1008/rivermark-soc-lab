@@ -76,3 +76,164 @@ A single `Accepted password for dev_amine` line, in isolation, looks **identical
 - **Stop condition:** dev_amine succeeds, or the list ends
 - **Snapshot portal first:** `m5-pre-ssh-guess`
 - **Packet capture:** Capture packets on the portal with `tcpdump` during the attack.
+
+
+
+
+
+# INC-001 — SSH Password Guessing Against rivermark-portal
+
+**Status:** Contained (no action taken)  
+**Detected:** 2026-10-14 15:58:30 UTC  
+**Analyst:** Junior Security Analyst  
+**Severity:** Medium
+
+---
+
+## Summary
+
+Between 15:58:30 and 15:58:46 UTC on 2026-10-14, a 16-second burst of SSH authentication attempts originated from 10.20.30.10 (Kali, lab LAN) against rivermark-portal (10.20.30.20). The attack tried a small list of usernames and passwords. One credential was correct: dev_amine. The successful session was short (login, exit) and did not read any draft.
+
+---
+
+## Timeline (portal UTC)
+
+| Time (UTC) | Event |
+|---|---|
+| 15:58:30 | Attack starts — first root attempt disconnected |
+| 15:58:31 | 4× `Failed password for root` (parallel) |
+| 15:58:32 | 3× `Failed password for root` |
+| 15:58:35 | Retry on port 34924 — second attempt on same connection |
+| 15:58:37 | Final root disconnect + PAM failure summary |
+| 15:58:40 | `Invalid user admin`, `Invalid user no_such_user` |
+| 15:58:41–15:58:43 | Multiple `Failed password for dev_amine` and `Failed password for invalid user no_such_user` |
+| **15:58:44** | **`Accepted password for dev_amine from 10.20.30.10 port 58990`** |
+| 15:58:44–15:58:45 | 2 more `Failed password for dev_amine` from parallel tasks still running |
+| 15:58:46 | Last `Connection closed by dev_amine [preauth]` |
+
+---
+
+## Source IP
+
+10.20.30.10 — Kali, lab LAN. Note: this is also the address dev_amine normally logs in from. Source IP alone is not the signal.
+
+---
+
+## Counts
+
+| Type | Count |
+|---|---:|
+| TCP SYN packets (pcap) | 30 |
+| Unique TCP connections (source ports) | 16 |
+| Failed password lines | 19 |
+| Invalid user lines | 6 |
+| Accepted password lines | 1 |
+| Total auth result lines | 26 |
+
+**Why 30 SYNs but 16 connections:** ~14 SYNs were TCP retransmissions. Counting unique source ports gives the true connection count.
+
+**Why 16 connections but 26 auth lines:** some connections delivered multiple password attempts before sshd closed them (MaxAuthTries). The pcap shows port 34924 carrying two root attempts. Not all connections behave the same way.
+
+---
+
+## The success
+
+**Line I would keep:**
+
+    Oct 14 15:58:44 rivermark-portal sshd[5317]: Accepted password for dev_amine from 10.20.30.10 port 58990 ssh2
+
+**Why this is not a normal dev_amine session:**
+
+A normal dev_amine login in the baseline is a single `Accepted password` line with no preceding burst. This success is preceded by 14 seconds of failed attempts from the same source IP, and followed by 2 more failed dev_amine attempts from parallel Hydra tasks.
+
+**Key nuance:** the successful login did NOT stop the failures. Hydra with `-t 4` runs 4 parallel tasks; when one found the credential, the other 3 were mid-attempt. Detection rules must not assume that success ends the burst.
+
+---
+
+## Invalid user example
+
+    Oct 14 15:58:40 rivermark-portal sshd[5316]: Invalid user no_such_user from 10.20.30.10 port 58986
+
+`Invalid user` means the username does not exist. `Failed password for <name>` (without `invalid user`) means the username exists.
+
+---
+
+## contractor_old
+
+Not attempted in this attack. Hydra was run with `-f` (stop on first success). dev_amine succeeded before the parallel tasks reached contractor_old. The list was not exhausted.
+
+**Finding:** `-f` changes the shape of an incident. The usernames tried depend on where in the list the successful credential sits, not on the attacker's full intent.
+
+---
+
+## root
+
+    Oct 14 15:58:32 rivermark-portal sshd[5299]: Failed password for root from 10.20.30.10 port 34924 ssh2
+
+`root` behaves like any other real user. The `permitrootlogin without-password` setting affects successful authentication (blocks password-only root login) but does not change how failed password attempts are logged.
+
+---
+
+## dev_sarah
+
+Not observed in the attack window. Hydra did not reach her in the list before `-f` stopped the run.
+
+---
+
+## Impact
+
+The successful dev_amine session could:
+
+- Run user-level commands as dev_amine.
+- See files owned by dev_amine.
+- NOT read drafts (`/srv/rivermark/drafts/` is `750 rivermark:rivermark`).
+- NOT sudo (verified in Mission 3).
+- NOT access `/srv/rivermark/` (permission denied).
+
+**What the attacker actually got:** a valid shell as dev_amine. No privilege escalation. No access to the crown jewel. The account is real, but its file permissions limit what it can reach.
+
+**"Compromised" is not a binary.** This session is a real account on the right port from the developer's usual address. It is not the crown jewel unless files moved. They did not.
+
+---
+
+## MITRE ATT&CK
+
+- **T1110.001 — Password Guessing:** systematic attempt of a small username/password list. Fits.
+- **T1078 — Valid Accounts:** the attacker used a valid developer credential to obtain a session. Fits, with the note: no post-compromise activity observed (no file access, no escalation, no lateral movement).
+
+---
+
+## What an alert should say (not implemented)
+
+> More than 10 SSH authentication failures from a single source IP within 60 seconds, regardless of target account.
+
+---
+
+## What I did NOT do (yet)
+
+- Did not disable the dev_amine account.
+- Did not block the source IP.
+- Did not restore the snapshot `m5-pre-ssh-guess`.
+- Did not modify `sshd_config`.
+- Did not modify the app.
+- Did not enable a firewall.
+
+The logs are the lab.
+
+---
+
+## Appendix — attacker command
+
+    hydra -L /tmp/users.txt -P /tmp/passwords.txt -t 4 -f ssh://10.20.30.20
+
+Attacker knowledge. The timeline does not depend on it.
+
+---
+
+## Appendix — packet capture
+
+- **File:** `/tmp/ssh-attack.pcap`
+- **Captured:** 416 packets
+- **Filter:** `tcp port 22` on `enp0s3`
+- **TCP SYN count:** 30
+- **Unique source ports (true connection count):** 16
