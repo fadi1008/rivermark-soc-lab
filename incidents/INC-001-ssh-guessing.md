@@ -123,22 +123,22 @@ Between 15:58:30 and 15:58:46 UTC on 2026-10-14, a 16-second burst of SSH authen
 
 | Metric | Value |
 |---|---|
-| Password attempts (Failed + Accepted) | [your number] |
-| TCP connections (unique source ports) | [your number] |
-| Invalid user enumeration lines | [your number] |
+| Password attempts (Failed + Accepted) | 20 |
+| TCP connections (unique source ports) | 16 |
+| Invalid user enumeration lines | 6 |
 
-**Why 30 SYNs but [your number] connections:** ~14 SYNs were TCP retransmissions.
+**Why 30 SYNs but 16 connections:** ~14 SYNs were TCP retransmissions.
 Counting unique source ports gives the true connection count.
 
-**Why [your number] connections but [your number] attempts:** some connections delivered more
+**Why 16 connections but 20 attempts:** some connections delivered more
 than one password attempt before sshd closed them (MaxAuthTries).
 The pcap shows port 34924 carrying two root attempts.
 
-**Why the journal has 26 raw lines but only [your number] attempts:** each attempt
+**Why the journal has 26 raw lines but only 20 attempts:** each attempt
 generates 2–5 journal lines (PAM check, PAM failure, Failed password,
 Connection closed). Counting raw lines over-counts.
 
-**For detection thresholds, use the [your number] attempts figure, not the raw
+**For detection thresholds, use the 20 attempts figure, not the raw
 journal lines.** The rule counts events, not log lines.
 
 ## The success

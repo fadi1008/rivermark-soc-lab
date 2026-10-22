@@ -36,3 +36,4 @@
 1. **Crown Jewel Access:** SSH rules cannot prove a user read a file. Only nginx logs can show `GET /drafts`.
 2. **Web Login Sprays:** A brute-force against the web portal (`POST /login`) will not trigger these SSH rules. It requires parsing the nginx/app logs.
 3. **Ubiquitous "Invalid user":** If Ubuntu changes the log wording, Rule 3 might fail. We mitigate this by also explicitly checking for `root` and `admin`.
+
