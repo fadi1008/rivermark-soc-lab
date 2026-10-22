@@ -119,22 +119,27 @@ Between 15:58:30 and 15:58:46 UTC on 2026-10-14, a 16-second burst of SSH authen
 
 ---
 
-## Counts
+## Counts (corrected)
 
-| Type | Count |
-|---|---:|
-| TCP SYN packets (pcap) | 30 |
-| Unique TCP connections (source ports) | 16 |
-| Failed password lines | 19 |
-| Invalid user lines | 6 |
-| Accepted password lines | 1 |
-| Total auth result lines | 26 |
+| Metric | Value |
+|---|---|
+| Password attempts (Failed + Accepted) | [your number] |
+| TCP connections (unique source ports) | [your number] |
+| Invalid user enumeration lines | [your number] |
 
-**Why 30 SYNs but 16 connections:** ~14 SYNs were TCP retransmissions. Counting unique source ports gives the true connection count.
+**Why 30 SYNs but [your number] connections:** ~14 SYNs were TCP retransmissions.
+Counting unique source ports gives the true connection count.
 
-**Why 16 connections but 26 auth lines:** some connections delivered multiple password attempts before sshd closed them (MaxAuthTries). The pcap shows port 34924 carrying two root attempts. Not all connections behave the same way.
+**Why [your number] connections but [your number] attempts:** some connections delivered more
+than one password attempt before sshd closed them (MaxAuthTries).
+The pcap shows port 34924 carrying two root attempts.
 
----
+**Why the journal has 26 raw lines but only [your number] attempts:** each attempt
+generates 2–5 journal lines (PAM check, PAM failure, Failed password,
+Connection closed). Counting raw lines over-counts.
+
+**For detection thresholds, use the [your number] attempts figure, not the raw
+journal lines.** The rule counts events, not log lines.
 
 ## The success
 
