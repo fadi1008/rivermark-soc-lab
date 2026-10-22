@@ -242,3 +242,9 @@ Attacker knowledge. The timeline does not depend on it.
 - **Filter:** `tcp port 22` on `enp0s3`
 - **TCP SYN count:** 30
 - **Unique source ports (true connection count):** 16
+
+
+## Cross-log verification
+nginx access log checked for 2026-10-14 15:58–15:59 UTC.
+Result: No HTTP requests to `/drafts` from 10.20.30.10 during the SSH attack. 
+Conclusion: The impact statement is confirmed. The attacker got a shell as `dev_amine`, but never touched the web portal or the draft files.
