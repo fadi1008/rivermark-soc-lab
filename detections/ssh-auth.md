@@ -37,3 +37,9 @@
 2. **Web Login Sprays:** A brute-force against the web portal (`POST /login`) will not trigger these SSH rules. It requires parsing the nginx/app logs.
 3. **Ubiquitous "Invalid user":** If Ubuntu changes the log wording, Rule 3 might fail. We mitigate this by also explicitly checking for `root` and `admin`.
 
+
+## Detection Updates Post-Hardening (Task B)
+Password authentication is now disabled. SSH logs will no longer show `Failed password` or `Accepted password`. They will show `Failed publickey` and `Accepted publickey`. 
+- `SSH_GUESS` and `SSH_SUCCESS_AFTER_FAILURES` regexes in `detect_ssh.py` must be updated to match `Failed publickey` and `Accepted publickey` to remain functional.
+- Residual threat: A stolen private key is now the attack vector, not a wordlist.
+

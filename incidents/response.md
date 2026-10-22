@@ -50,3 +50,14 @@
 
 **Residual Risk (Plain Language):**
 The stolen passwords are dead, and the specific sessions are closed. However, the attacker knows `dev_amine` and `analyst_yassine` are valid accounts. Because our detection threshold for failed logins is 3, a single quiet retry with the old password will look like a normal typo to our alerting system. We have no mechanism yet to ban a repeat offender.
+
+## Appendix — Alert Lines (Missions 6 & 7)
+
+*SSH Alerts (INC-001):*
+[MEDIUM] SSH_GUESS @ 2026-10-15 10:01:14 — 19 failed attempts from 10.20.30.10
+[HIGH] SSH_SUCCESS_AFTER_FAILURES @ 2026-10-15 10:01:46 — Login for dev_amine from 10.20.30.10 after 16 failures
+[MEDIUM] SSH_UNEXPECTED_ACCOUNT @ 2026-10-15 10:01:14 — unexpected account root from 10.20.30.10
+
+*Web Alerts (INC-002):*
+[MEDIUM] WEB_LOGIN_GUESS @ 2026-10-15 10:08:07 — 4 failed logins from 10.20.30.10
+[HIGH] WEB_DRAFT_AFTER_GUESS @ 2026-10-15 10:08:10 — User analyst_yassine read /drafts/draft-001-acme.txt from 10.20.30.10 after a login burst
