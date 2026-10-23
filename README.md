@@ -10,6 +10,8 @@ This lab covers the full lifecycle: **Architecture, Attack Simulation, Detection
 - **Portal Server:** Ubuntu 24.04 (Nginx, custom Python App, SSH).
 - **Security Controls:** UFW (default deny), TLS encryption (HTTPS), SSH Key-only authentication, Principle of Least Privilege (App runs on `127.0.0.1`).
 
+![VirtualBox Network Adapters](images/virtualbox-network-adapters.png)
+
 ## 🚨 The Incidents
 I simulated two controlled attacks against the lab and wrote full incident reports.
 - **INC-001 (SSH Brute Force):** An attacker used Hydra to guess a developer's password. 
@@ -27,12 +29,17 @@ I wrote custom Python detection scripts (`scripts/`) that parse raw logs and fir
 
 The detection script is automated via a **systemd timer** that uses a cursor bookmark to ensure old incidents do not re-alert.
 
+### Example Alert (INC-002 Web Attack)
+![Detection Alert](images/detection-alert.png)
+
 ## 📂 Key Artifacts
 - [Case Study & Spoken Answers](docs/case-study.md)
 - [Incident 001 Report](incidents/INC-001-ssh-guessing.md)
 - [Incident 002 Report](incidents/INC-002-web-draft.md)
 - [Detection Rules](detections/)
 - [Sanitization Process](docs/sanitization.md)
+
+![Case Study Preview](images/github-case-study.png)
 
 ## 🧠 Skills Demonstrated
 `Linux Administration` • `Network Segmentation` • `Nginx` • `Python` • `TLS/HTTPS` • `UFW` • `SSH Hardening` • `Log Analysis` • `Incident Response` • `MITRE ATT&CK` • `Systemd Automation`
