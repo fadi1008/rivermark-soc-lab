@@ -55,10 +55,10 @@ A systemd timer (`rivermark-detect.timer`) runs every 5 minutes. It uses a curso
 ## Task C: Spoken Answers
 
 **1. Why did a successful SSH as dev_amine not mean the research was stolen?**
-Because authentication and authorization are different. Dev_amine got a valid shell, but the Linux file permissions (750, owned by `rivermark`) blocked reading `/srv/rivermark/drafts/`. Without `sudo` rights, the attacker was trapped in a low-privilege account.
+While the attacker gained a valid shell on the host (which is an impact in itself), they did not steal the research. The file mode (750) blocked `dev_amine` from reading `/srv/rivermark/drafts/`. I proved this by actively trying to `cat` the file as `dev_amine` and receiving a Permission denied error. Furthermore, the nginx access log showed zero draft requests during the SSH window, confirming the shell was never used to access the web portal. 
 
 **2. Why did the web threshold move from 5 to 3, and what false positive did you accept?**
-The threshold was lowered because Hydra only generated 4 failed logins before it found the correct password. A threshold of 5 would have missed the breach. By lowering it to 3, we accept the false positive that a legitimate analyst who mistypes their password three times in one minute will trigger an alert.
+The threshold was lowered because Hydra only generated 4 failed logins before finding the correct password. A threshold of 5 would have missed the breach. By lowering it to 3, we accept the false positive that an analyst who mistypes their password three times in one minute will trigger an alert. However, this is an overfit lab rule: because we only had one typo in the baseline and 4 failures in the attack, 3 was the only number that worked. I would not ship this threshold to a production firm without a full week of real analyst behavior to establish a true baseline.
 
 **3. Why is "Connection closed by authenticating user [preauth]" not the same incident as "Failed publickey"?**
 `Failed publickey` means a key was offered and rejected by the server. `Connection closed... [preauth]` means the connection died before authentication even completed. Hydra trying passwords on a key-only server generates the preauth close. Treating a rejected key as a password spray means you are alerting on the wrong attack vector.
