@@ -497,7 +497,7 @@ Unix file permissions are the control that still matters after the login page is
 | Path | Purpose | Owner | Mode |
 |---|---|---|---|
 | /opt/rivermark/app.py | Python app (stdlib only) | root:root | 644 |
-| /etc/rivermark/secret | Web password file (`analyst_yassine:369258147`) | rivermark:rivermark | 640 |
+| /etc/rivermark/secret | Web password file (`analyst_yassine:<REDACTED>`) | rivermark:rivermark | 640 |
 | /etc/systemd/system/rivermark-portal.service | systemd unit | root:root | 644 |
 | /etc/nginx/sites-available/rivermark | nginx site config | root:root | 644 |
 | /etc/nginx/sites-enabled/rivermark | symlink → sites-available | — | — |

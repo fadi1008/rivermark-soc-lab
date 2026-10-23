@@ -13,7 +13,7 @@ On 2026-10-22, a brute-force attack was launched against the portal login form (
 
 ## Timeline (Portal UTC)
 - **14:45:40** — Hydra starts sending POST /login requests. 4 failures (200).
-- **14:45:41** — Hydra submits the final password (`369258147`). Login succeeds (302).
+- **14:45:41** — Hydra submits the final password (`<REDACTED>`). Login succeeds (302).
 - **14:45:41** — WEB_LOGIN_GUESS triggers based on the 4 failures.
 - **14:45:41** — Attacker uses session cookie to request `/drafts/draft-001-acme.txt` (200).
 - **14:45:41** — WEB_DRAFT_AFTER_GUESS triggers based on the draft read.

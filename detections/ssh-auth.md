@@ -43,3 +43,7 @@ Password authentication is now disabled. SSH logs will no longer show `Failed pa
 - `SSH_GUESS` and `SSH_SUCCESS_AFTER_FAILURES` regexes in `detect_ssh.py` must be updated to match `Failed publickey` and `Accepted publickey` to remain functional.
 - Residual threat: A stolen private key is now the attack vector, not a wordlist.
 
+
+
+### Change in Rule Meaning (Mission 10)
+`SSH_GUESS` no longer means "password spray." Since passwords are disabled, it now means "several sessions died in preauth." A missing key, a client that gives up, and Hydra all end in `Connection closed by authenticating user [preauth]`. The threshold of 5 in 60 seconds keeps a single mistake from paging us.
