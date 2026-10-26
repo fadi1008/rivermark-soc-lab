@@ -43,3 +43,16 @@ The detection script is automated via a **systemd timer** that uses a cursor boo
 
 ## 🧠 Skills Demonstrated
 `Linux Administration` • `Network Segmentation` • `Nginx` • `Python` • `TLS/HTTPS` • `UFW` • `SSH Hardening` • `Log Analysis` • `Incident Response` • `MITRE ATT&CK` • `Systemd Automation`
+
+
+# Rivermark Security Lab
+
+## Phase 1: Blue Team (SOC & Detection)
+*Built an isolated enterprise environment, simulated brute-force attacks, engineered detections, and practiced incident response.*
+(Scroll down to read the Phase 1 documentation)
+
+## Phase 2: Red Team (Pivoting & Exploitation) - IN PROGRESS
+*Architected a DMZ and an isolated internal network. Currently exploiting a vulnerable web app (DVWA) to pivot from the DMZ into the internal network.*
+- **Architecture:** DMZ (`10.20.40.0/24`) -> Dual-homed Partner Portal -> Internal Analytics Server (`10.20.30.0/24`).
+- **Isolation Proof:** Verified that the attacker (Kali) cannot reach the internal network directly.
+- **Current Phase:** Mission 2 (Exploiting DVWA to gain initial access).
