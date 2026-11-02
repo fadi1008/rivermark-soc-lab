@@ -1,58 +1,80 @@
-# Rivermark SOC Lab: End-to-End Security Operations
+# Rivermark Security Lab — Blue Team & Red Team, End to End
 
-## Project Overview
-Rivermark Partners is a fictional boutique investment research firm. Their crown jewel is not their web server; it is their **unpublished research drafts**. This project simulates a junior security analyst building a Security Operations capability from scratch for this small business.
+**Author:** Fadi Bellalah · [GitHub](https://github.com/fadi1008)
 
-This lab covers the full lifecycle: **Architecture, Attack Simulation, Detection Engineering, Incident Response, Hardening, and Automation.**
+Rivermark Partners is a **fictional** boutique investment research firm. Its crown jewel is not the web server but its **unpublished research drafts**.
+This lab builds the company's security from scratch, defends it (Phase 1), then attacks it from the outside like a penetration tester (Phase 2).
 
-## 🏗️ Architecture & Hardening
-- **Lab Network:** Isolated VirtualBox Internal Network (`10.20.30.0/24`). Management plane on Host-Only (`192.168.56.0/24`).
-- **Portal Server:** Ubuntu 24.04 (Nginx, custom Python App, SSH).
-- **Security Controls:** UFW (default deny), TLS encryption (HTTPS), SSH Key-only authentication, Principle of Least Privilege (App runs on `127.0.0.1`).
+| Phase | Role | Status | Main deliverable |
+|---|---|---|---|
+| 1 | Blue Team — SOC, detection, incident response | ✅ Completed | [Incident reports](incidents/) · [Detection rules](detections/) |
+| 2 | Red Team — external → internal penetration test | ✅ Completed | [Penetration test report](phase2/report/README.md) |
 
-![VirtualBox Network Adapters](images/virtualbox-network-adapters.png)
+> **Ethics:** everything runs in an isolated VirtualBox lab. All IPs are RFC 1918, all data is synthetic, and sensitive artefacts (keys, tokens) are redacted. See [sanitization process](docs/sanitization.md).
 
-## 🚨 The Incidents
-I simulated two controlled attacks against the lab and wrote full incident reports.
-- **INC-001 (SSH Brute Force):** An attacker used Hydra to guess a developer's password. 
-  - *Impact:* Shell obtained, but file permissions (750) prevented access to the drafts.
-- **INC-002 (Web Brute Force):** An attacker guessed an analyst's password on the web portal.
-  - *Impact:* A confidential draft was successfully accessed. 
-- **Response:** Identity-based containment (rotating passwords) without blocking the shared IP (`10.20.30.10`), which would have caused a business outage.
+---
 
-## 🛡️ Detection Engineering
-I wrote custom Python detection scripts (`scripts/`) that parse raw logs and fire alerts for:
-1. `SSH_GUESS` (Multiple preauth disconnects from one IP).
-2. `SSH_SUCCESS_AFTER_FAILURES` (Login success after a burst of failures).
-3. `WEB_LOGIN_GUESS` (Multiple 200 OKs on POST /login).
-4. `WEB_DRAFT_AFTER_GUESS` (Joining Nginx logs with App logs to see who read a draft).
+## Phase 1 — Blue Team: SOC & Detection
 
-The detection script is automated via a **systemd timer** that uses a cursor bookmark to ensure old incidents do not re-alert.
+### Architecture & hardening
+- **Lab network:** isolated VirtualBox internal network (`10.20.30.0/24`); management plane on Host-Only (`192.168.56.0/24`).
+- **Portal server:** Ubuntu 24.04 (Nginx, custom Python app, SSH).
+- **Controls:** UFW default-deny, TLS (HTTPS), SSH key-only authentication, least privilege (app bound to `127.0.0.1`, source owned by `root`).
+- Details: [architecture](docs/architecture.md) · [hardening](docs/hardening.md) · [design decisions](docs/decisions.md)
 
-### Example Alert (INC-002 Web Attack)
-![Detection Alert](images/detection-alert.png)
+![VirtualBox network adapters](images/virtualbox-network-adapters1-portal.png)
 
-## 📂 Key Artifacts
-- [Case Study & Spoken Answers](docs/case-study.md)
-- [Incident 001 Report](incidents/INC-001-ssh-guessing.md)
-- [Incident 002 Report](incidents/INC-002-web-draft.md)
-- [Detection Rules](detections/)
-- [Sanitization Process](docs/sanitization.md)
+### Simulated incidents
+- **INC-001 — SSH brute force** (Hydra against a developer account). Shell obtained, but file permissions (`750`) protected the drafts. → [report](incidents/INC-001-ssh-guessing.md)
+- **INC-002 — Web brute force** (analyst password guessed on the portal). A confidential draft was accessed. → [report](incidents/INC-002-web-draft.md)
+- **Response:** identity-based containment (password rotation) instead of blocking the shared IP `10.20.30.10`, which would have caused a business outage. → [response playbook](incidents/response.md)
 
-![Case Study Preview](images/github-case-study.png)
+### Detection engineering
+Custom Python detections parse raw logs and raise alerts:
 
-## 🧠 Skills Demonstrated
-`Linux Administration` • `Network Segmentation` • `Nginx` • `Python` • `TLS/HTTPS` • `UFW` • `SSH Hardening` • `Log Analysis` • `Incident Response` • `MITRE ATT&CK` • `Systemd Automation`
+| Alert | Logic |
+|---|---|
+| `SSH_GUESS` | Many pre-auth disconnects from one IP |
+| `SSH_SUCCESS_AFTER_FAILURES` | Successful login after a burst of failures |
+| `WEB_LOGIN_GUESS` | Repeated `POST /login` attempts |
+| `WEB_DRAFT_AFTER_GUESS` | Joins Nginx and app logs to show who read a draft after a guessing burst |
 
+Runs every 5 minutes through a **systemd timer** with a cursor bookmark, so past incidents do not re-alert. Rules: [SSH](detections/ssh-auth.md) · [Web](detections/web-auth.md)
 
-# Rivermark Security Lab
+![Detection alert — INC-002](images/alert-screenshot.png)
 
-## Phase 1: Blue Team (SOC & Detection)
-*Built an isolated enterprise environment, simulated brute-force attacks, engineered detections, and practiced incident response.*
-(Scroll down to read the Phase 1 documentation)
+---
 
-## Phase 2: Red Team (Pivoting & Exploitation) - IN PROGRESS
-*Architected a DMZ and an isolated internal network. Currently exploiting a vulnerable web app (DVWA) to pivot from the DMZ into the internal network.*
-- **Architecture:** DMZ (`10.20.40.0/24`) -> Dual-homed Partner Portal -> Internal Analytics Server (`10.20.30.0/24`).
-- **Isolation Proof:** Verified that the attacker (Kali) cannot reach the internal network directly.
-- **Current Phase:** Mission 2 (Exploiting DVWA to gain initial access).
+## Phase 2 — Red Team: External-to-Internal Penetration Test
+
+**Scope:** DMZ (`10.20.40.0/24`) → dual-homed Partner Portal → internal Analytics server (`10.20.30.0/24`).
+**Result:** full `root` on the internal Analytics server and access to the confidential drafts, starting from the internet-facing portal with no credentials.
+
+![Attack chain](phase2/attack-chain-diagram.jpeg)
+
+| ID | Finding | Severity |
+|---|---|---|
+| [F-01](phase2/report/findings/F-01-command-injection.md) | Command injection in the public web app | Critical (9.8) |
+| [F-02](phase2/report/findings/F-02-exposed-ssh-key.md) | SSH private key exposed on the DMZ host | Critical (9.8) |
+| [F-03](phase2/report/findings/F-03-segmentation-failure.md) | Network segmentation failure (dual-homed host) | High (8.8) |
+| [F-04](phase2/report/findings/F-04-sudo-vim.md) | Privilege escalation via `sudo vim` | High (8.8) |
+
+**Report:** [executive summary](phase2/report/00-executive-summary.md) · [scope & RoE](phase2/report/01-scope-roe.md) · [methodology](phase2/report/02-methodology.md) · [attack narrative](phase2/report/03-attack-narrative.md) · [MITRE ATT&CK mapping](phase2/report/08-attack-mapping.md) · [detection gaps](phase2/report/06-detection-gaps.md) · [remediation](phase2/report/09-remediation.md) · [retest plan](phase2/report/10-retest-plan.md)
+
+**Blue ↔ Red link:** the [detection gaps](phase2/report/06-detection-gaps.md) section maps which Phase 2 steps the Phase 1 detections would and would not have caught.
+
+---
+
+## Repository structure
+```
+docs/            architecture, hardening, decisions, sanitization, case study
+detections/      detection rule documentation
+incidents/       Phase 1 incident reports and response playbook
+evidence/        sanitized Phase 1 log excerpts and baselines
+phase2/report/   Phase 2 penetration test report, findings, redacted evidence
+phase2-red-team/ mission-by-mission working notes
+images/          screenshots and diagrams
+```
+
+## Skills demonstrated
+`Linux administration` · `Network segmentation` · `Nginx / TLS` · `UFW` · `SSH hardening` · `Python` · `Log analysis` · `Detection engineering` · `Incident response` · `Web exploitation` · `Pivoting / tunneling` · `Linux privilege escalation` · `CVSS scoring` · `MITRE ATT&CK` · `Pentest reporting`

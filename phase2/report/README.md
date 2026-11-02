@@ -3,7 +3,7 @@
 **Engagement Type:** External to Internal Network Penetration Test
 **Date of Assessment:** October 2026
 **Classification:** INTERNAL / PORTFOLIO (Sanitized)
-**Author:** Security Analyst
+**Author:** Fadi Bellalah
 
 ---
 
